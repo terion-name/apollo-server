@@ -49,7 +49,7 @@ module.exports = {
           Testing: ['testing/mocking', 'testing/testing', 'testing/graphql-playground'],
           Performance: ['performance/caching', 'performance/apq'],
           Security: ['security/authentication', 'security/terminating-ssl'],
-          Integrations: ['integrations/middleware'],
+          Integrations: ['integrations/middleware', 'integrations/plugins'],
           Deployment: [
             'deployment/heroku',
             'deployment/lambda',
