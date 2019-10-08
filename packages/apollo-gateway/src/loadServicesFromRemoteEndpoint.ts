@@ -1,9 +1,9 @@
-import { GraphQLRequest } from 'apollo-server-types';
-import { parse } from 'graphql';
-import { Headers, HeadersInit } from 'node-fetch';
-import { GraphQLDataSource } from './datasources/types';
-import { UpdateServiceDefinitions } from './';
-import { ServiceDefinition } from '@apollo/federation';
+import {GraphQLRequest} from 'apollo-server-types';
+import {Kind, parse, specifiedScalarTypes, visit} from 'graphql';
+import {Headers, HeadersInit} from 'node-fetch';
+import {GraphQLDataSource} from './datasources/types';
+import {UpdateServiceDefinitions} from './';
+import {ServiceDefinition} from '@apollo/federation';
 
 export async function getServiceDefinitionsFromRemoteEndpoint({
   serviceList,
@@ -13,6 +13,7 @@ export async function getServiceDefinitionsFromRemoteEndpoint({
   serviceList: {
     name: string;
     url?: string;
+    namespace?: string;
     dataSource: GraphQLDataSource;
   }[];
   headers?: HeadersInit;
@@ -27,7 +28,7 @@ export async function getServiceDefinitionsFromRemoteEndpoint({
   let isNewSchema = false;
   // for each service, fetch its introspection schema
   const serviceDefinitions: ServiceDefinition[] = (await Promise.all(
-    serviceList.map(({ name, url, dataSource }) => {
+      serviceList.map(({name, url, namespace, dataSource}) => {
       if (!url) {
         throw new Error(`Tried to load schema from ${name} but no url found`);
       }
@@ -53,10 +54,29 @@ export async function getServiceDefinitionsFromRemoteEndpoint({
               isNewSchema = true;
             }
             serviceSdlCache.set(name, typeDefs);
+
+            let serviceTypeDefs;
+            if (namespace) {
+              // FIXME namespacesMatcher is to check does a type refers to external one (e.g. is prefixed byy it's prefix)
+              // FIXME This is not a bulletproof solution as not guarantees collisions, but as for now can't figure out nothing better
+              const namespacesMatcher = serviceList.map(({namespace})=>namespace).join('|') + '.*';
+              const typeNamePrefixer = (node: any) =>
+                  !specifiedScalarTypes.find(({name}) => name === node.name.value) && !node.name.value.match(namespacesMatcher)
+                      ? {...node, name: {...node.name, value: namespace + node.name.value}}
+                      : undefined;
+              serviceTypeDefs = visit(parse(typeDefs), {
+                [Kind.NAMED_TYPE]: typeNamePrefixer,
+                [Kind.OBJECT_TYPE_DEFINITION]: typeNamePrefixer,
+                [Kind.SCALAR_TYPE_DEFINITION]: typeNamePrefixer
+              });
+            } else {
+              serviceTypeDefs = parse(typeDefs);
+            }
+
             return {
               name,
               url,
-              typeDefs: parse(typeDefs),
+              typeDefs: serviceTypeDefs,
             };
           }
 

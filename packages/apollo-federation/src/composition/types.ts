@@ -37,6 +37,7 @@ export interface ServiceDefinition {
   typeDefs: DocumentNode;
   name: string;
   url?: string;
+  namespace?: string;
 }
 
 declare module 'graphql/type/definition' {
